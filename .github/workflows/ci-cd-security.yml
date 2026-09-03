@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy_to_azure:
+        description: Deploy to Azure after security scanning
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -40,6 +46,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Sign in to Azure with OIDC
+        if: ${{ vars.DEPLOY_TO_AZURE == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_to_azure == true) }}
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -47,6 +54,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy the Bicep template
+        if: ${{ vars.DEPLOY_TO_AZURE == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_to_azure == true) }}
         uses: azure/arm-deploy@v2
         with:
           resourceGroupName: demo-rg
