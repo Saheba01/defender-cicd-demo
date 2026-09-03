@@ -24,20 +24,27 @@ subject 'repo:<owner>/<repo>:ref:refs/heads/main'.
 This means the login itself reached Entra ID, but the app registration has no federated
 identity credential matching the token GitHub presented. Fix it on the Azure side:
 
-1. In the Azure portal go to **Microsoft Entra ID → App registrations → your app →
+1. Open the failed run's log and copy the exact value printed after `subject claim`. That
+   string is the single source of truth for what the federated credential must match.
+2. In the Azure portal go to **Microsoft Entra ID → App registrations → your app →
    Certificates & secrets → Federated credentials → Add credential**.
-2. Choose scenario **GitHub Actions deploying Azure resources**.
-3. Set:
-   - **Organization**: `Saheba01`
-   - **Repository**: `defender-cicd-demo`
-   - **Entity type**: `Branch`, **Branch**: `main`
-     (add a second credential with entity type `Pull request` if you also deploy from PRs,
-     and one per environment/tag you deploy from — one credential matches exactly one subject)
-   - **Audience**: `api://AzureADTokenExchange`
-
-   The resulting subject must match exactly what the workflow log prints under
-   `subject claim`, e.g. `repo:Saheba01/defender-cicd-demo:ref:refs/heads/main`.
-4. Give the app registration's service principal at least **Contributor** on the target
+3. Pick the scenario that matches the subject you copied:
+   - If the subject has the plain form `repo:Saheba01/defender-cicd-demo:ref:refs/heads/main`,
+     use scenario **GitHub Actions deploying Azure resources** with
+     **Organization** `Saheba01`, **Repository** `defender-cicd-demo`,
+     **Entity type** `Branch`, **Branch** `main`.
+     Note that *Organization* and *Repository* here are names, not numeric IDs — for a
+     personal account the "organization" is simply the account name.
+   - If the subject embeds numeric IDs, e.g.
+     `repo:Saheba01@26364553/defender-cicd-demo@1355769430:ref:refs/heads/main`
+     (`26364553` is the owner ID, `1355769430` is the repository ID), the portal wizard
+     cannot produce it. Choose scenario **Other issuer** instead and enter:
+     - **Issuer**: `https://token.actions.githubusercontent.com`
+     - **Subject identifier**: the subject copied verbatim from the log
+4. Set **Audience** to `api://AzureADTokenExchange` in either case.
+5. One credential matches exactly one subject, so add a separate credential for each ref you
+   deploy from (other branches, `pull_request`, tags, or environments).
+6. Give the app registration's service principal at least **Contributor** on the target
    resource group so `azure/arm-deploy` can deploy.
 
 ### Required repository configuration
