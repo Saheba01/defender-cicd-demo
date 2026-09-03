@@ -39,7 +39,22 @@ jobs:
           path: ${{ steps.msdo.outputs.sarifFile }}
           if-no-files-found: warn
 
+      - name: Check whether Azure credentials are configured
+        id: azure-creds
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_SUBSCRIPTION_ID" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AZURE_CLIENT_ID, AZURE_TENANT_ID and/or AZURE_SUBSCRIPTION_ID are not set. Skipping Azure login and deployment. See README.md for setup instructions."
+          fi
+
       - name: Sign in to Azure with OIDC
+        if: steps.azure-creds.outputs.configured == 'true'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -47,7 +62,8 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy the Bicep template
+        if: steps.azure-creds.outputs.configured == 'true'
         uses: azure/arm-deploy@v2
         with:
-          resourceGroupName: demo-rg
+          resourceGroupName: ${{ vars.AZURE_RESOURCE_GROUP || 'demo-rg' }}
           template: infra/main.bicep
