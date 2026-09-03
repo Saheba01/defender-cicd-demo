@@ -1,0 +1,53 @@
+name: CI/CD Security Demo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+  id-token: write
+
+jobs:
+  scan-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Run Microsoft Security DevOps
+        uses: microsoft/security-devops-action@latest
+        id: msdo
+        with:
+          categories: IaC
+
+      - name: Upload MSDO SARIF to GitHub Code Scanning
+        if: ${{ always() && steps.msdo.outputs.sarifFile != '' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.msdo.outputs.sarifFile }}
+          category: microsoft-security-devops
+
+      - name: Save MSDO SARIF as an artifact
+        if: ${{ always() && steps.msdo.outputs.sarifFile != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: msdo-sarif-results
+          path: ${{ steps.msdo.outputs.sarifFile }}
+          if-no-files-found: warn
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy the Bicep template
+        uses: azure/arm-deploy@v2
+        with:
+          resourceGroupName: demo-rg
+          template: infra/main.bicep
