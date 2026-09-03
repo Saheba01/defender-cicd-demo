@@ -34,4 +34,4 @@ resource publicContainer 'Microsoft.Storage/storageAccounts/blobServices/contain
 }
 
 output storageAccountName string = storageAccount.name
-output containerUrl string = 'https://${storageAccount.name}.blob.core.windows.net/${publicContainer.name}'
+output containerUrl string = '${storageAccount.properties.primaryEndpoints.blob}${publicContainer.name}'
